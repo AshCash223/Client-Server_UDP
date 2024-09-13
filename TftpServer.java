@@ -1,6 +1,7 @@
 import java.net.*;
 import java.io.*;
 import java.util.*;
+import java.lang.*;
 
 class TftpServerWorker extends Thread
 {
@@ -14,25 +15,59 @@ class TftpServerWorker extends Thread
     {
         File file = new File(filename);
         if (!file.exists()) {
+            System.err.println("wrong");
             //send an error for a file not being found for the client
             return;
+        }
+
+        System.out.println("file exists");
+        try (FileInputStream fis = new FileInputStream(file)) {
+            DatagramSocket ds = new DatagramSocket(); // Create a new socket for sending DATA
+            InetAddress clientAddress = req.getAddress(); //gets the ip of the client
+            int clientPort = req.getPort(); //gets the port numb of the client
+            byte[] buf = new byte[512];
+            byte blockNumber = 1;
+            int bytesRead; //byte reader
+
+            while ((bytesRead = fis.read(buf)) != -1) {
+
+                byte[] array = new byte[514];
+                array[0] = DATA;
+                array[1] = blockNumber;
+
+                System.arraycopy(buf, 0, array, 2, buf.length); //copies the content of buf start from 0 then coppy arrays content then add the buf.lenght
+                    
+                    DatagramPacket sendPacket = new DatagramPacket(array, array.length, clientAddress, clientPort);
+                    ds.send(sendPacket); // Send DATA packet
+                    System.out.println("Sent block #" + blockNumber + array.length);
+
+                    boolean ackrecieved;
+
+                    //TftpClient ackSuccess = new TftpClient();
+                    //recived = ackSuccess.ackrecived();
+                   
+
+            }
+
+        }catch(Exception e){
+            System.err.println("wrong");
         }
         /*
          * open the file using a FileInputStream and send it, one block at
          * a time, to the receiver.
          */
 	return;
-    }
+}
 
     public void run()
     {
 
         try {
             byte[] requestData = req.getData();
-            if (requestData[0] == 0 && requestData[1] == RRQ) { // Check if it's an RRQ using the first 2 bytes
-                String filename = new String(requestData, 2, req.getLength() - 2); //making a string constructor extracting file at index 2
+            if (requestData[0] == RRQ) { // Check if it's an RRQ using the first 2 bytes
+                String filename = new String(requestData, 1, req.getLength() - 1); //making a string constructor extracting file at index 2
                 System.out.println("Received RRQ for file: " + filename);
-                sendfile(filename);
+                sendfile(filename); //calling the send file method and parsing the file name to it
             } else {
                 System.out.println("Invalid request received.");
                 //sending the error packet to the client
@@ -46,7 +81,7 @@ class TftpServerWorker extends Thread
     public TftpServerWorker(DatagramPacket req)
     {
 	    this.req = req;
-        start(); //calling start instead of run directly to create a new thread
+        //start(); //calling start instead of run directly to create a new thread
     }
 }
 
