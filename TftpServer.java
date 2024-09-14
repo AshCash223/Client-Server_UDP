@@ -26,27 +26,26 @@ class TftpServerWorker extends Thread
             InetAddress clientAddress = req.getAddress(); //gets the ip of the client
             int clientPort = req.getPort(); //gets the port numb of the client
             byte[] buf = new byte[512];
-            byte blockNumber = 1;
+            int blockNumber = 1;
             int bytesRead; //byte reader
 
             while ((bytesRead = fis.read(buf)) != -1) {
 
                 byte[] array = new byte[514];
                 array[0] = DATA;
-                array[1] = blockNumber;
+                array[1] = (byte)blockNumber;
 
                 System.arraycopy(buf, 0, array, 2, buf.length); //copies the content of buf start from 0 then coppy arrays content then add the buf.lenght
                     
                     DatagramPacket sendPacket = new DatagramPacket(array, array.length, clientAddress, clientPort);
                     ds.send(sendPacket); // Send DATA packet
-                    System.out.println("Sent block #" + blockNumber + array.length);
+                    System.out.println("Sent block #" + blockNumber);
 
-                    boolean ackrecieved;
+                    boolean recievedAckcieved = AckTrueOrfalase();
 
-                    //TftpClient ackSuccess = new TftpClient();
-                    //recived = ackSuccess.ackrecived();
+                    Thread.sleep(3000); //3 second delay for testing
                    
-
+                blockNumber++;
             }
 
         }catch(Exception e){
@@ -59,6 +58,11 @@ class TftpServerWorker extends Thread
 	return;
 }
 
+    public boolean AckTrueOrfalase(){
+
+        return true;
+    }
+
     public void run()
     {
 
@@ -68,6 +72,11 @@ class TftpServerWorker extends Thread
                 String filename = new String(requestData, 1, req.getLength() - 1); //making a string constructor extracting file at index 2
                 System.out.println("Received RRQ for file: " + filename);
                 sendfile(filename); //calling the send file method and parsing the file name to it
+            } else if(requestData[0] == ACK){
+                //String recievedAck = new String(requestData, 1, req.getLength() - 1); //making a string constructor extracting file at index 2
+                int recievedBN = requestData[1];
+                System.out.println("Received Ack for file: " + recievedBN);
+                Thread.sleep(3000); //3 second delay for testing
             } else {
                 System.out.println("Invalid request received.");
                 //sending the error packet to the client

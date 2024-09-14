@@ -38,27 +38,25 @@ public class TftpClient {
 
             while (true) {
 
-                byte[] buffer = new byte[514];
-                DatagramPacket response = new DatagramPacket(buffer, buffer.length);
-                System.out.println("Sent request, waiting for response");
+                byte[] buffer = new byte[514]; //buffer to recieve data blocks
+                DatagramPacket response = new DatagramPacket(buffer, buffer.length); //datagram packet for recieved packets of data
+                System.out.println("Sent request, waiting for response"); //indication the request has been sent
                 cs.receive(response);
-                //String quote = new String(buffer, 0, response.getLength());
-                //System.out.println(quote);
-                byte[] getData = new byte[514];
-                getData = response.getBytes();
-                byte blocknumber = getData[1];
+                byte[] recievedPacket = new byte[514]; //recievedPacket byte array to extract and validate recievedPacket packets
+                recievedPacket = response.getData(); //extracts recievedPacket from response
+                int blocknumber = recievedPacket[1]; //the block number should be in the 2nd index in the recievedPacket array
 
-               if(getData[0] == 2) {
-                    byte[] ackPacket = new byte[2];
-                    ackPacket[0] = 3;
-                    ackPacket[1] = blocknumber;
-                    DatagramPacket ackResponse = new DatagramPacket(ackPacket, ackPacket.length, ia, portNumb);
-                    cs.send(ackResponse);
-                 } else if(getData[0] == 4) {
-
+               if(recievedPacket[0] == 2) { //if the recievedPacket packet type is a 2 then recieved packet is a data packet
+                    byte[] ackPacket = new byte[2]; //creating an ack packet to send the server
+                    ackPacket[0] = 3; //initializing the ackpackets type
+                    ackPacket[1] = (byte)blocknumber; //adding the block number to the second index of the ackpacket
+                    DatagramPacket ackResponse = new DatagramPacket(ackPacket, ackPacket.length, ia, portNumb); //forging the ack response
+                    cs.send(ackResponse); //sending the ackresponse to the server
+                 } else if(recievedPacket[0] == 4) { //if the recievedPackets type is a 4 then an error packet was sent
+                    //when error packet is recived what should you do?
                 }
                 System.out.println();
-                Thread.sleep(3000);
+                Thread.sleep(3000); //3 second delay for testing
 
             }
         } catch (SocketTimeoutException ex) {
