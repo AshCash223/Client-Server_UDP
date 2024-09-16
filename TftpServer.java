@@ -53,7 +53,8 @@ class TftpServerWorker extends Thread
                     sendPackets(ds, sendPacket, blockNumber); //call sendPackets method
 
                     //indicating packet sent and moving on to the next data packet in the loop
-                    System.out.println("Sending data packet: " + blockNumber); 
+                    
+                    System.out.println("received ACK number: " + blockNumber); //indicating ack 
                     blockNumber++;
                 }
                 System.out.println("++++++++++++++++++");
@@ -71,11 +72,11 @@ class TftpServerWorker extends Thread
 
     private boolean sendPackets(DatagramSocket ds, DatagramPacket dp, int blockNumber)
     {
-        System.out.println("received ACK number: " + blockNumber); //indicating ack 
-
+        
+        System.out.println("Sending data packet: " + blockNumber); 
         int attempts = 0; 
         try {
-            ds.setSoTimeout(1000); //setting a timeout for the datagram socket to ensure ACK is received
+            ds.setSoTimeout(5000); //setting a timeout for the datagram socket to ensure ACK is received
 
             while (attempts < 5) {
 
