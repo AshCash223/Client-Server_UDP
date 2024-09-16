@@ -14,95 +14,90 @@ class TftpServerWorker extends Thread
     private void sendfile(String filename)
     {
         try {
-            DatagramSocket ds = new DatagramSocket(); // Create a new socket for sending DATA
-            File file = new File(filename);
-            if (!file.exists()) {
-                System.err.println("file " + filename + " does not exist");
-                // Convert the string "" to a byte array
-                byte[] errorMessage = "file does not exist".getBytes(); // Convert the string to a byte array
 
-                byte[] errorPacket = new byte[1 + errorMessage.length];
-
-                errorPacket[0] = 4; // Error type byte
-
-                // Copy the error message bytes into the errorPacket starting from index 1
-                System.arraycopy(errorMessage, 0, errorPacket, 1, errorMessage.length);
-
-                // Create the DatagramPacket with the error packet and send it
-                DatagramPacket ep = new DatagramPacket(errorPacket, errorPacket.length, req.getAddress(), req.getPort()); 
-                ds.send(ep); // Send the packet
+            DatagramSocket ds = new DatagramSocket(); // datagram socket for sending packets from the server to client
+            File file = new File(filename); //create file object for requested file name
+            if (!file.exists()) { //check if file exists in the server
+                System.err.println("file " + filename + " does not exist"); //error message for the server to recieve
+                byte[] errorMessage = "file does not exist".getBytes(); //Convert the string to a byte array
+                byte[] errorPacket = new byte[1 + errorMessage.length]; 
+                errorPacket[0] = ERROR; //set the type for packet
+                System.arraycopy(errorMessage, 0, errorPacket, 1, errorMessage.length); //array copy to combine the byte arrays for the error packet
+                DatagramPacket ep = new DatagramPacket(errorPacket, errorPacket.length, req.getAddress(), req.getPort()); //create and send the data packet to the user
+                ds.send(ep); 
             }
 
-            System.out.println("file exists");
+            //file exits so continue code
+            System.out.println("file exists"); 
 
-            try (FileInputStream fis = new FileInputStream(file)) {
-                InetAddress clientAddress = req.getAddress(); // gets the ip of the client
-                int clientPort = req.getPort(); // gets the port numb of the client
-                byte[] buf = new byte[512];
-                int blockNumber = 1;
-                int bytesRead; // byte reader
+            try (FileInputStream fis = new FileInputStream(file)) {//input stream to read file bytes
+
+                InetAddress clientAddress = req.getAddress(); //ip of client
+                int clientPort = req.getPort(); //port of client
+                byte[] buf = new byte[512]; //buf byte array to read 512 bytes at a time
+                int blockNumber = 1; //data block id
+                int bytesRead; //byte reader
                 
-                while ((bytesRead = fis.read(buf)) != -1) {
+                while ((bytesRead = fis.read(buf)) != -1) {//while file has bytes to read
 
-                    byte[] array = new byte[514]; // byte array for data packets
-                    
-                    array[0] = DATA;
-                    array[1] = (byte) blockNumber;
-
-                    System.out.println(bytesRead);
-                    System.arraycopy(buf, 0, array, 2, buf.length); // copies the content of buf start from 0 then copy arrays content then add the buf.length
-                    DatagramPacket sendPacket = new DatagramPacket(array, array.length, clientAddress, clientPort);
-
-                    if(bytesRead < 512){
-                        sendPacket = new DatagramPacket(array, bytesRead + 2, clientAddress, clientPort);
-                        Retransmit(ds, sendPacket, blockNumber); // Send DATA packet
-                        break;
-                    } else{
-                        Retransmit(ds, sendPacket, blockNumber); // Send DATA packet
+                    byte[] array = new byte[514]; //byte array for data packets (514, 2 more bytes for type and block number)                    
+                    array[0] = DATA; //declare type and add block number
+                    array[1] = (byte) blockNumber; 
+                    System.arraycopy(buf, 0, array, 2, buf.length); //assembeling the data packet to send to the client
+                    DatagramPacket sendPacket; 
+                    if(bytesRead < 512){ //data packets less than 512 bytes
+                        sendPacket = new DatagramPacket(array, bytesRead + 2, clientAddress, clientPort); //adjust the size of datagram packet 
+                    } else{ //data packets that are 512 bytes
+                       sendPacket = new DatagramPacket(array, array.length, clientAddress, clientPort);
                     }
-                    System.out.println("Sent block #" + blockNumber);
+                    sendPackets(ds, sendPacket, blockNumber); //call sendPackets method
+
+                    //indicating packet sent and moving on to the next data packet in the loop
+                    System.out.println("Sending data packet: " + blockNumber); 
                     blockNumber++;
                 }
-                System.out.println("File transmitted");
+                System.out.println("++++++++++++++++++");
+                System.out.println("+File transmitted+"); //file is finished being transmitted
+                System.out.println("++++++++++++++++++");
 
-            } catch (IOException e) {
+            } catch (IOException e) { //catching a input and output exception
                 System.err.println("Input and Output error: " + e);
             }
-        } catch (Exception e) {
-
+        } catch (Exception e) { //catch for any other exception
+            System.err.println("system error: " + e);
         }
         return;
     }
 
-    private boolean Retransmit(DatagramSocket ds, DatagramPacket dp, int blockNumber)
+    private boolean sendPackets(DatagramSocket ds, DatagramPacket dp, int blockNumber)
     {
-        int attempts = 0;
+        System.out.println("received ACK number: " + blockNumber); //indicating ack 
 
-        System.out.println("received ack " + blockNumber);
+        int attempts = 0; 
         try {
-            ds.setSoTimeout(1000);
+            ds.setSoTimeout(1000); //setting a timeout for the datagram socket to ensure ACK is received
 
             while (attempts < 5) {
-                ds.send(dp); // Send DATA packet
 
-                // Receive the ACK
-                byte[] ackBuffer = new byte[2]; // Buffer to receive the ACK
+                ds.send(dp); //Send DATA packet
+                //Receiving the ACK
+                byte[] ackBuffer = new byte[2]; 
                 DatagramPacket ackPacket = new DatagramPacket(ackBuffer, ackBuffer.length);
-                ds.receive(ackPacket); // Block until ACK is received
+                ds.receive(ackPacket); 
 
                 if (ackPacket.getLength() == 2 && ackPacket.getData()[0] == ACK && blockNumber == ackPacket.getData()[1]) {
+                    //return true if ACK packet is received successfully else retranmit datapacket again
                     return true;
                 }
-
                 attempts++;
             }
-        } catch (SocketTimeoutException er) {
+        } catch (SocketTimeoutException er) {//timeout exception therefore attemp another retransmission
             attempts++;
-        } catch (IOException e) {
+        } catch (IOException e) {//input output exception
             System.err.println(e);
             return false;
         }
-        return false;
+        return false; //give up and move on to the next datapacket after 5 attempts
     }
 
     public void run()
