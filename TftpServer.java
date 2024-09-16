@@ -10,57 +10,93 @@ class TftpServerWorker extends Thread
     private static final byte DATA = 2;
     private static final byte ACK = 3;
     private static final byte ERROR = 4;
+    
 
     private void sendfile(String filename)
     {
+        try{
+        DatagramSocket ds = new DatagramSocket(); // Create a new socket for sending DATA
         File file = new File(filename);
         if (!file.exists()) {
-            System.err.println("wrong");
-            //send an error for a file not being found for the client
-            return;
+            System.err.println("file " + filename + " does not exist");
+            // Convert the string "" to a byte array
+            byte[] errorMessage = "file does not exist".getBytes(); // Convert the string to a byte array
+
+            byte[] errorPacket = new byte[1 + errorMessage.length];
+
+            errorPacket[0] = 4; // Error type byte
+
+            // Copy the error message bytes into the errorPacket starting from index 1
+            System.arraycopy(errorMessage, 0, errorPacket, 1, errorMessage.length);
+
+            // Create the DatagramPacket with the error packet and send it
+            DatagramPacket ep = new DatagramPacket(errorPacket, errorPacket.length, req.getAddress(), req.getPort()); 
+            ds.send(ep); // Send the packet
         }
 
         System.out.println("file exists");
+
         try (FileInputStream fis = new FileInputStream(file)) {
-            DatagramSocket ds = new DatagramSocket(); // Create a new socket for sending DATA
             InetAddress clientAddress = req.getAddress(); //gets the ip of the client
             int clientPort = req.getPort(); //gets the port numb of the client
             byte[] buf = new byte[512];
             int blockNumber = 1;
             int bytesRead; //byte reader
+                
 
             while ((bytesRead = fis.read(buf)) != -1) {
 
-                byte[] array = new byte[514];
+                byte[] array = new byte[514]; //byte array for data packets
                 array[0] = DATA;
                 array[1] = (byte)blockNumber;
-
+    
                 System.arraycopy(buf, 0, array, 2, buf.length); //copies the content of buf start from 0 then coppy arrays content then add the buf.lenght
-                    
-                    DatagramPacket sendPacket = new DatagramPacket(array, array.length, clientAddress, clientPort);
-                    ds.send(sendPacket); // Send DATA packet
-                    System.out.println("Sent block #" + blockNumber);
 
-                    boolean recievedAckcieved = AckTrueOrfalase();
-
-                    Thread.sleep(3000); //3 second delay for testing
-                   
+               
+                DatagramPacket sendPacket = new DatagramPacket(array, array.length, clientAddress, clientPort);
+                System.out.println("Sent block #" + blockNumber); 
+                Retransmit(ds,sendPacket, blockNumber); // Send DATA packet
                 blockNumber++;
             }
+            System.out.println("File transmitted");
 
-        }catch(Exception e){
-            System.err.println("wrong");
+        }catch(IOException e){
+            System.err.println("Input and Output error: " + e);
         }
-        /*
-         * open the file using a FileInputStream and send it, one block at
-         * a time, to the receiver.
-         */
-	return;
-}
+    }catch(Exception e){
 
-    public boolean AckTrueOrfalase(){
+    }
+        return;
+    }
 
-        return true;
+    private boolean Retransmit(DatagramSocket ds, DatagramPacket dp, int blockNumber){
+        int attempts = 0;
+
+        System.out.println("recieved ack " + blockNumber);
+        try{
+        ds.setSoTimeout(1000);
+
+        while (attempts < 5) {
+            ds.send(dp); // Send DATA packet
+
+            // Receive the ACK
+            byte[] ackBuffer = new byte[2]; // Buffer to receive the ACK
+            DatagramPacket ackPacket = new DatagramPacket(ackBuffer, ackBuffer.length);
+            ds.receive(ackPacket); // Block until ACK is received
+
+            if (ackPacket.getLength() == 2 && ackPacket.getData()[0] == ACK && blockNumber == ackPacket.getData()[1]) {
+                return true;
+            }
+
+            attempts++;
+        }
+        }catch(SocketTimeoutException er){
+            attempts++;
+        }catch(IOException e){
+            System.err.println(e);
+            return false;
+        }
+        return false;
     }
 
     public void run()
@@ -72,24 +108,16 @@ class TftpServerWorker extends Thread
                 String filename = new String(requestData, 1, req.getLength() - 1); //making a string constructor extracting file at index 2
                 System.out.println("Received RRQ for file: " + filename);
                 sendfile(filename); //calling the send file method and parsing the file name to it
-            } else if(requestData[0] == ACK){
-                //String recievedAck = new String(requestData, 1, req.getLength() - 1); //making a string constructor extracting file at index 2
-                int recievedBN = requestData[1];
-                System.out.println("Received Ack for file: " + recievedBN);
-                Thread.sleep(3000); //3 second delay for testing
-            } else {
-                System.out.println("Invalid request received.");
-                //sending the error packet to the client
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
-	return;
+    return;
     }
 
     public TftpServerWorker(DatagramPacket req)
     {
-	    this.req = req;
+        this.req = req;
         //start(); //calling start instead of run directly to create a new thread
     }
 }
@@ -119,9 +147,9 @@ class TftpServer{
         return;
     }
 
-            public static void main(String args[])
-            {
-            TftpServer d = new TftpServer();
-            d.start_server();
-            }
+    public static void main(String args[])
+    {
+    TftpServer d = new TftpServer();
+    d.start_server();
+    }
 }
