@@ -50,11 +50,16 @@ class TftpServerWorker extends Thread
                     } else{ //data packets that are 512 bytes
                        sendPacket = new DatagramPacket(array, array.length, clientAddress, clientPort);
                     }
-                    sendPackets(ds, sendPacket, blockNumber); //call sendPackets method
+                    boolean ackReceived = sendPackets(ds, sendPacket, blockNumber); //call sendPackets method
 
+                    if (ackReceived) {
+                        System.out.println("received ACK number: " + blockNumber); //indicating ack 
+                
+                    } else{
+                        System.out.println("failed to receive ACK number: " + blockNumber); //indicating ack 
+                    }
                     //indicating packet sent and moving on to the next data packet in the loop
                     
-                    System.out.println("received ACK number: " + blockNumber); //indicating ack 
                     blockNumber++;
                 }
                 System.out.println("++++++++++++++++++");
@@ -84,16 +89,28 @@ class TftpServerWorker extends Thread
                 //Receiving the ACK
                 byte[] ackBuffer = new byte[2]; 
                 DatagramPacket ackPacket = new DatagramPacket(ackBuffer, ackBuffer.length);
+
+                try{
+
                 ds.receive(ackPacket); 
 
                 if (ackPacket.getLength() == 2 && ackPacket.getData()[0] == ACK && blockNumber == ackPacket.getData()[1]) {
+
                     //return true if ACK packet is received successfully else retranmit datapacket again
                     return true;
+                } else{
+
+                    System.out.println("invalid packet");
+                    attempts++;
                 }
-                attempts++;
+
+                } catch (SocketTimeoutException e){
+
+                    System.out.println("timeout");
+                    attempts++;
+                }
             }
-        } catch (SocketTimeoutException er) {//timeout exception therefore attemp another retransmission
-            attempts++;
+
         } catch (IOException e) {//input output exception
             System.err.println(e);
             return false;
@@ -109,7 +126,7 @@ class TftpServerWorker extends Thread
                 String filename = new String(requestData, 1, req.getLength() - 1); // making a string constructor extracting file at index 2
                 System.out.println("Received RRQ for file: " + filename);
                 sendfile(filename); // calling the send file method and parsing the file name to it
-            }
+            } 
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -135,7 +152,6 @@ class TftpServer
                 byte[] buf = new byte[1472]; // creating a byte array with a byte limit of 1472 bytes
                 DatagramPacket p = new DatagramPacket(buf, 1472); // creating a datagram packet with the contents of buf(byte array) alongside max number of bytes
                 ds.receive(p); // send the datagram packet to be received by the datagram socket
-                
                 TftpServerWorker worker = new TftpServerWorker(p); // calling the TftpServerWorker class and parsing the datagram packet on to it
                 worker.start(); // starting the code into the TftpServerWorker
             }

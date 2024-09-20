@@ -39,6 +39,7 @@ public class TftpClient {
                 cs.receive(response); //receiving packet
                 byte[] recievedPacket = new byte[514]; 
                 recievedPacket = response.getData(); //extracts data from the receivedPacket from response
+
                 if (response.getLength() < 2) {
                     return; //return if packet is invalid
                 }
@@ -60,7 +61,7 @@ public class TftpClient {
                 byte[] ackPacket = new byte[2]; // creating an ack packet to send the server
                 ackPacket[0] = 3; // initializing the ackPacket's type
                 ackPacket[1] = (byte) blocknumber; // adding the block number to the second
-                DatagramPacket ackResponse = new DatagramPacket(ackPacket, ackPacket.length, ia, portNumb); // forging the ack response
+                DatagramPacket ackResponse = new DatagramPacket(ackPacket, ackPacket.length, ia, response.getPort()); // forging the ack response
 
                 if (expectedBN == blocknumber) { //if expected and current block numbers are equal
 
